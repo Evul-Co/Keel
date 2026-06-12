@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Dapper;
 using Keel.Infra.Db.Sql.Access.Context;
 
@@ -8,38 +8,47 @@ public class DbDapperAccess(IDbSharedContextProvider sharedConnectionProvider)
 {
     public async Task<T?> ReadOneAsync<T>(string sql, object? param, CancellationToken cancellationToken)
     {
-        using var context = await sharedConnectionProvider.GetContextAsync(cancellationToken);
+        using var context = await sharedConnectionProvider.GetContextAsync(cancellationToken).ConfigureAwait(false);
         var connection = context.Connection;
 
-        return connection
-            .QueryFirstOrDefault<T>(
-                sql,
-                param,
-                commandType: CommandType.Text,
-                transaction: context.Transaction);
+        return await connection
+            .QueryFirstOrDefaultAsync<T>(
+                new CommandDefinition(
+                    sql,
+                    param,
+                    commandType: CommandType.Text,
+                    transaction: context.Transaction,
+                    cancellationToken: cancellationToken))
+            .ConfigureAwait(false);
     }
     public async Task<T?> ReadOneSpAsync<T>(string sql, object? param, CancellationToken cancellationToken)
     {
-        using var context = await sharedConnectionProvider.GetContextAsync(cancellationToken);
+        using var context = await sharedConnectionProvider.GetContextAsync(cancellationToken).ConfigureAwait(false);
         var connection = context.Connection;
 
-        return connection.QueryFirstOrDefault<T>(
-            sql,
-            param,
-            commandType: CommandType.StoredProcedure,
-            transaction: context.Transaction);
+        return await connection.QueryFirstOrDefaultAsync<T>(
+            new CommandDefinition(
+                sql,
+                param,
+                commandType: CommandType.StoredProcedure,
+                transaction: context.Transaction,
+                cancellationToken: cancellationToken))
+            .ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<T>> ReadAsync<T>(string sql, object? param, CancellationToken cancellationToken)
     {
-        using var context = await sharedConnectionProvider.GetContextAsync(cancellationToken);
+        using var context = await sharedConnectionProvider.GetContextAsync(cancellationToken).ConfigureAwait(false);
         var connection = context.Connection;
 
-        return connection.Query<T>(
-            sql, 
-            param, 
-            commandType: CommandType.Text, 
-            transaction: context.Transaction);
+        return await connection.QueryAsync<T>(
+            new CommandDefinition(
+                sql,
+                param,
+                commandType: CommandType.Text,
+                transaction: context.Transaction,
+                cancellationToken: cancellationToken))
+            .ConfigureAwait(false);
     }
     public async Task<IEnumerable<T>> ReadSpAsync<T>(string sql, object? param, CancellationToken cancellationToken)
     {

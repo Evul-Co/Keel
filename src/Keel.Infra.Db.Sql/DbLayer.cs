@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Data.Common;
 using Keel.Infra.Db.Sql.Access;
 using Keel.Infra.Db.Sql.Access.Context;
@@ -65,6 +65,33 @@ public abstract class DbLayer : IDbLayer, IDbSharedContextProvider
         if (connection.State != ConnectionState.Open)
         {
             await connection.OpenAsync(cancellationToken);
+        }
+
+        return connection.CreateCommand();
+    }
+
+    DbSharedContext IDbSharedContextProvider.GetContext()
+    {
+        var transaction = Orm.Database.CurrentTransaction?.GetDbTransaction();
+
+        var connection = Orm.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+        {
+            connection.Open();
+        }
+
+        return new DbSharedContext(
+            connection,
+            transaction,
+            false);
+    }
+
+    DbCommand IDbSharedContextProvider.GetCommand()
+    {
+        var connection = Orm.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+        {
+            connection.Open();
         }
 
         return connection.CreateCommand();

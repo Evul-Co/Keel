@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Data.Common;
 using Keel.Infra.Db.Sql.Access.Context;
 using Keel.Infra.Db.Sql.Exceptions;
@@ -102,7 +102,7 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
     public void Read(
         string command, CommandType commandType, Action<DbDataReader> callback, CancellationToken cancellationToken, params DbParameter[] parameters)
     {
-        using var comm = provider.GetCommandAsync(cancellationToken).GetAwaiter().GetResult();
+        using var comm = provider.GetCommand();
 
         comm.CommandText = command;
         comm.CommandType = commandType;
@@ -110,7 +110,7 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
 
         comm.Parameters.AddRange(parameters);
 
-        var reader = comm.ExecuteReader();
+        using var reader = comm.ExecuteReader();
         while (reader.NextResult())
         {
             callback(reader);
@@ -121,9 +121,7 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
         string command, CommandType commandType, Func<DbDataReader, T> processAction, CancellationToken cancellationToken,
         params DbParameter[] parameters)
     {
-        using var comm = provider.GetCommandAsync(cancellationToken)
-            .GetAwaiter()
-            .GetResult();
+        using var comm = provider.GetCommand();
 
         comm.CommandText = command;
         comm.CommandType = commandType;
@@ -131,8 +129,45 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
 
         comm.Parameters.AddRange(parameters);
 
-        var reader = comm.ExecuteReader();
+        using var reader = comm.ExecuteReader();
         while (reader.Read())
+        {
+            yield return processAction(reader);
+        }
+    }
+
+    public async Task ReadAsync(
+        string command, CommandType commandType, Action<DbDataReader> callback, CancellationToken cancellationToken, params DbParameter[] parameters)
+    {
+        await using var comm = await provider.GetCommandAsync(cancellationToken).ConfigureAwait(false);
+
+        comm.CommandText = command;
+        comm.CommandType = commandType;
+        comm.CommandTimeout = 200;
+
+        comm.Parameters.AddRange(parameters);
+
+        using var reader = await comm.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false))
+        {
+            callback(reader);
+        }
+    }
+
+    public async IAsyncEnumerable<T> ReadAsync<T>(
+        string command, CommandType commandType, Func<DbDataReader, T> processAction, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken,
+        params DbParameter[] parameters)
+    {
+        await using var comm = await provider.GetCommandAsync(cancellationToken).ConfigureAwait(false);
+
+        comm.CommandText = command;
+        comm.CommandType = commandType;
+        comm.CommandTimeout = 200;
+
+        comm.Parameters.AddRange(parameters);
+
+        using var reader = await comm.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             yield return processAction(reader);
         }
@@ -150,7 +185,8 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
         builder.SetExecutionByReturnType<TResult>();
         if (builder.Mode == DbDirectAccessBuilder.EExecMode.PrimitiveValue)
         {
-            return (TResult)(object)comm.ExecuteScalarAsync(cancellationToken);
+            var scalarResult = await comm.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            return CastScalar<TResult>(scalarResult);
         }
 
         var set = new DataSet();
@@ -193,7 +229,8 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
         builder.SetExecutionByReturnType<TResult>();
         if (builder.Mode == DbDirectAccessBuilder.EExecMode.PrimitiveValue)
         {
-            return (TResult)(object)command.ExecuteScalarAsync(cancellationToken);
+            var scalarResult = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            return CastScalar<TResult>(scalarResult);
         }
 
         var set = new DataSet();
@@ -223,6 +260,19 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
         }
 
         return (TResult)(object)set;
+    }
+
+    private static TResult CastScalar<TResult>(object? value)
+    {
+        if (value == null || value == DBNull.Value)
+        {
+            return default!;
+        }
+
+        var targetType = typeof(TResult);
+        var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+        return (TResult)Convert.ChangeType(value, underlyingType);
     }
 
     public DbParameter CreateParameter(string name, DbType dbType, object? value)

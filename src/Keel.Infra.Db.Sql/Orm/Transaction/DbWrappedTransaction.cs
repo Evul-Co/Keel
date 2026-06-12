@@ -14,4 +14,20 @@ internal class DbWrappedTransaction(bool transactionOwner, DatabaseFacade databa
     {
         return transactionOwner ? database.RollbackTransactionAsync(cancellationToken) : Task.CompletedTask;
     }
+
+    public void Dispose()
+    {
+        if (transactionOwner)
+        {
+            database.CurrentTransaction?.Dispose();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (transactionOwner && database.CurrentTransaction != null)
+        {
+            await database.CurrentTransaction.DisposeAsync().ConfigureAwait(false);
+        }
+    }
 }

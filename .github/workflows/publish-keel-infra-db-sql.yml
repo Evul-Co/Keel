@@ -1,0 +1,25 @@
+name: Publish Keel.Infra.Db.Sql
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "Keel.Infra.Db.Sql-v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish_github_packages:
+    uses: ./.github/workflows/publish-dotnet-package.yml
+    with:
+      project_path: src/Keel.Infra.Db.Sql/Keel.Infra.Db.Sql.csproj
+    secrets: inherit
+
+  publish_nugetorg:
+    uses: ./.github/workflows/publish-nugetorg-package.yml
+    with:
+      project_path: src/Keel.Infra.Db.Sql/Keel.Infra.Db.Sql.csproj
+    secrets:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

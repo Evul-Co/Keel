@@ -14,6 +14,9 @@ O **Keel.Infra.Db.Sql** é uma biblioteca de infraestrutura unificada para acess
 
 Esta biblioteca é totalmente desacoplada de dependências externas proprietárias, focando na performance assíncrona moderna (Task-based Asynchronous Pattern) e segurança no gerenciamento de transações.
 
+> [!TIP]
+> **Orientação para Agentes de IA**: Se você estiver utilizando assistentes de codificação de IA (como Gemini, Copilot ou Cursor) neste projeto, oriente-os a ler e seguir as diretrizes documentadas em **[AI_GUIDE.md](file:///Users/adrianosepe/x-src/evul/Keel/src/Keel.Infra.Db.Sql/AI_GUIDE.md)** para garantir boas práticas de concorrência e evitar vazamentos de recursos.
+
 ### 1. Registro e Configuração (IoC)
 
 A biblioteca expõe o método de extensão `EnableDbLayer` sob o namespace `Microsoft.EntityFrameworkCore` para registrar o contexto de banco de dados e a camada de dados no contêiner de Injeção de Dependência (`IServiceCollection`).

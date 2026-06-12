@@ -10,6 +10,7 @@
 
   <ItemGroup>
 	<None Include=".StaticDependency\DevExtreme.AspNet.Core.dll" Pack="true" PackagePath="lib/$(TargetFramework)" Visible="false" />
+	<PackageReference Include="DotNetAppBase.Std.Library" Version="1.3.12" />
 	<PackageReference Include="FluentValidation" Version="11.11.0" />
 	<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.2">
 	  <PrivateAssets>all</PrivateAssets>

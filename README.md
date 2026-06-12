@@ -1,26 +1,32 @@
-# keel
-Project base to support microservices using .NET
+# Keel
 
-## GitHub Packages
+A foundational project template designed to support the development of microservices using .NET.
 
-Each project has its own GitHub Actions workflow for creating and publishing a NuGet package to GitHub Packages.
+## 📦 Publishing Packages
 
-The same workflow run also publishes the package to NuGet.org.
+Each project within Keel has its own GitHub Actions workflow configured for creating and publishing NuGet packages to both **GitHub Packages** and **NuGet.org**.
 
-- Manual publish: run the workflow for the project in the `Actions` tab.
-- Publish by tag: create a tag using the format `<PackageId>-v<version>`. The `<version>` value must match the package `Version` evaluated by MSBuild.
+### 🚀 How to Publish
 
-Examples:
+You can trigger the publishing process in two ways:
 
-- `Keel.Domain.CleanCode-v1.1`
-- `Keel.Infra.Db-v1.1`
-- `Keel.Infra.WebApi-v1.1`
+1. **Manual Publish:** Trigger the workflow manually for the specific project via the `Actions` tab in GitHub.
+2. **Publish by Tag:** Create and push a Git tag using the format `<PackageId>-v<version>`. 
+   * ⚠️ *Important:* The `<version>` value must exactly match the `Version` property evaluated by MSBuild in the project file.
+   * ⚠️ *Note:* Push a maximum of three tags at a time. GitHub does not generate tag push events if more than three tags are pushed simultaneously.
 
-Packages are published to:
+#### Tag Examples
+- `Keel.Domain.CleanCode-v1.1.0`
+- `Keel.Infra.Db-v1.1.0`
+- `Keel.Infra.WebApi-v1.1.0`
 
-- `https://nuget.pkg.github.com/adrianosepe/index.json`
-- `https://www.nuget.org/packages`
+### 🌐 Package Destinations
 
-Required GitHub Actions secret:
+Upon successful execution of the workflow, packages are published to the following registries:
+- **GitHub Packages:** `https://nuget.pkg.github.com/evul/index.json`
+- **NuGet.org:** `https://www.nuget.org/packages`
 
-- `NUGET_API_KEY`: API key generated in NuGet.org for package push
+### 🔑 Prerequisites for GitHub Actions
+
+To enable publishing to NuGet.org, the following repository secret must be configured:
+- `NUGET_API_KEY`: An API key generated on NuGet.org with permissions to push packages.

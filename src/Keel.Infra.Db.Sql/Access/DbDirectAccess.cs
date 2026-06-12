@@ -1,7 +1,9 @@
 using System.Data;
 using System.Data.Common;
+using System.Runtime.CompilerServices;
 using Keel.Infra.Db.Sql.Access.Context;
 using Keel.Infra.Db.Sql.Exceptions;
+using Microsoft.EntityFrameworkCore;
 
 namespace Keel.Infra.Db.Sql.Access;
 
@@ -9,95 +11,121 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
 {
     public IDbSharedContextProvider Provider => provider;
     
+    public int CommandTimeout { get; set; } = 30;
+
+    private async Task<T> ExecuteResilientAsync<T>(Func<Task<T>> operation)
+    {
+        if (provider is IDbLayer dbLayer)
+        {
+            var strategy = dbLayer.Orm.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(operation);
+        }
+        return await operation();
+    }
+
     public async Task<DataSet> DataSetAsync(
         string command, CommandType commandType, CancellationToken cancellationToken, params DbParameter[] parameters)
     {
-        await using var comm = await provider
-            .GetCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
+        return await ExecuteResilientAsync(async () =>
+        {
+            await using var comm = await provider
+                .GetCommandAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-        comm.CommandText = command;
-        comm.CommandType = commandType;
-        comm.CommandTimeout = 200;
+            comm.CommandText = command;
+            comm.CommandType = commandType;
+            comm.CommandTimeout = CommandTimeout;
 
-        comm.Parameters.AddRange(parameters);
+            comm.Parameters.AddRange(parameters);
 
-        var set = new DataSet();
-        
-        using var adapter = InternalCreateDataAdapter(comm);
-        adapter.Fill(set);
+            var set = new DataSet();
+            
+            using var adapter = InternalCreateDataAdapter(comm);
+            adapter.Fill(set);
 
-        return set;
+            return set;
+        }).ConfigureAwait(false);
     }
+
     public async Task<DataTable> DataTableAsync(
         string command, CommandType commandType, CancellationToken cancellationToken, params DbParameter[] parameters)
     {
-        await using var comm = await provider.GetCommandAsync(cancellationToken);
+        return await ExecuteResilientAsync(async () =>
+        {
+            await using var comm = await provider.GetCommandAsync(cancellationToken).ConfigureAwait(false);
 
-        comm.CommandText = command;
-        comm.CommandType = commandType;
-        comm.CommandTimeout = 200;
+            comm.CommandText = command;
+            comm.CommandType = commandType;
+            comm.CommandTimeout = CommandTimeout;
 
-        comm.Parameters.AddRange(parameters);
+            comm.Parameters.AddRange(parameters);
 
-        var table = new DataTable();
+            var table = new DataTable();
 
-        using var adapter = InternalCreateDataAdapter(comm);
-        adapter.Fill(table);
+            using var adapter = InternalCreateDataAdapter(comm);
+            adapter.Fill(table);
 
-        return table;
+            return table;
+        }).ConfigureAwait(false);
     }
     
     public async Task<DataRow?> DataRowAsync(
         string command, CommandType commandType, CancellationToken cancellationToken, params DbParameter[] parameters)
     {
-        await using var comm = await provider.GetCommandAsync(cancellationToken);
+        return await ExecuteResilientAsync(async () =>
+        {
+            await using var comm = await provider.GetCommandAsync(cancellationToken).ConfigureAwait(false);
 
-        comm.CommandText = command;
-        comm.CommandType = commandType;
-        comm.CommandTimeout = 200;
+            comm.CommandText = command;
+            comm.CommandType = commandType;
+            comm.CommandTimeout = CommandTimeout;
 
-        comm.Parameters.AddRange(parameters);
+            comm.Parameters.AddRange(parameters);
 
-        var table = new DataTable();
+            var table = new DataTable();
 
-        using var adapter = InternalCreateDataAdapter(comm);
-        adapter.Fill(table);
+            using var adapter = InternalCreateDataAdapter(comm);
+            adapter.Fill(table);
 
-        return table
-            .AsEnumerable()
-            .FirstOrDefault();
+            return table
+                .AsEnumerable()
+                .FirstOrDefault();
+        }).ConfigureAwait(false);
     }
 
     public async Task<TScalar?> ScalarAsync<TScalar>(
         string command, CommandType commandType, CancellationToken cancellationToken, params DbParameter[] parameters)
     {
-        await using var comm = await provider.GetCommandAsync(cancellationToken);
+        return await ExecuteResilientAsync(async () =>
+        {
+            await using var comm = await provider.GetCommandAsync(cancellationToken).ConfigureAwait(false);
 
-        comm.CommandText = command;
-        comm.CommandType = commandType;
-        comm.CommandTimeout = 200;
+            comm.CommandText = command;
+            comm.CommandType = commandType;
+            comm.CommandTimeout = CommandTimeout;
 
-        comm.Parameters.AddRange(parameters);
+            comm.Parameters.AddRange(parameters);
 
-        return (TScalar?)await comm.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            return (TScalar?)await comm.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        }).ConfigureAwait(false);
     }
 
     public async Task<int> NonQueryAsync(
         string command, CommandType commandType, CancellationToken cancellationToken, params DbParameter[] parameters)
     {
-        await using var comm = await provider.GetCommandAsync(cancellationToken);
+        return await ExecuteResilientAsync(async () =>
+        {
+            await using var comm = await provider.GetCommandAsync(cancellationToken).ConfigureAwait(false);
 
-        comm.CommandText = command;
-        comm.CommandType = commandType;
-        comm.CommandTimeout = 200;
+            comm.CommandText = command;
+            comm.CommandType = commandType;
+            comm.CommandTimeout = CommandTimeout;
 
-        comm.Parameters.AddRange(parameters);
+            comm.Parameters.AddRange(parameters);
 
-        return await comm.ExecuteNonQueryAsync(cancellationToken);
+            return await comm.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }).ConfigureAwait(false);
     }
-
-    
 
     public void Read(
         string command, CommandType commandType, Action<DbDataReader> callback, CancellationToken cancellationToken, params DbParameter[] parameters)
@@ -106,7 +134,7 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
 
         comm.CommandText = command;
         comm.CommandType = commandType;
-        comm.CommandTimeout = 200;
+        comm.CommandTimeout = CommandTimeout;
 
         comm.Parameters.AddRange(parameters);
 
@@ -125,7 +153,7 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
 
         comm.CommandText = command;
         comm.CommandType = commandType;
-        comm.CommandTimeout = 200;
+        comm.CommandTimeout = CommandTimeout;
 
         comm.Parameters.AddRange(parameters);
 
@@ -139,127 +167,151 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
     public async Task ReadAsync(
         string command, CommandType commandType, Action<DbDataReader> callback, CancellationToken cancellationToken, params DbParameter[] parameters)
     {
-        await using var comm = await provider.GetCommandAsync(cancellationToken).ConfigureAwait(false);
-
-        comm.CommandText = command;
-        comm.CommandType = commandType;
-        comm.CommandTimeout = 200;
-
-        comm.Parameters.AddRange(parameters);
-
-        using var reader = await comm.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        while (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false))
+        await ExecuteResilientAsync<object?>(async () =>
         {
-            callback(reader);
-        }
+            await using var comm = await provider.GetCommandAsync(cancellationToken).ConfigureAwait(false);
+
+            comm.CommandText = command;
+            comm.CommandType = commandType;
+            comm.CommandTimeout = CommandTimeout;
+
+            comm.Parameters.AddRange(parameters);
+
+            using var reader = await comm.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false))
+            {
+                callback(reader);
+            }
+            return null;
+        }).ConfigureAwait(false);
     }
 
     public async IAsyncEnumerable<T> ReadAsync<T>(
-        string command, CommandType commandType, Func<DbDataReader, T> processAction, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken,
+        string command, CommandType commandType, Func<DbDataReader, T> processAction, [EnumeratorCancellation] CancellationToken cancellationToken,
         params DbParameter[] parameters)
     {
-        await using var comm = await provider.GetCommandAsync(cancellationToken).ConfigureAwait(false);
-
-        comm.CommandText = command;
-        comm.CommandType = commandType;
-        comm.CommandTimeout = 200;
-
-        comm.Parameters.AddRange(parameters);
-
-        using var reader = await comm.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        DbCommand? comm = null;
+        DbDataReader? reader = null;
+        try
         {
-            yield return processAction(reader);
+            reader = await ExecuteResilientAsync(async () =>
+            {
+                comm = await provider.GetCommandAsync(cancellationToken).ConfigureAwait(false);
+
+                comm.CommandText = command;
+                comm.CommandType = commandType;
+                comm.CommandTimeout = CommandTimeout;
+
+                comm.Parameters.AddRange(parameters);
+
+                return await comm.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+            
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                yield return processAction(reader);
+            }
+        }
+        finally
+        {
+            if (reader != null) await reader.DisposeAsync().ConfigureAwait(false);
+            if (comm != null) await comm.DisposeAsync().ConfigureAwait(false);
         }
     }
     
     public async Task<TResult> QueryAsync<TResult>(Action<DbDirectAccessBuilder> config, CancellationToken cancellationToken)
     {
-        var context = await provider.GetContextAsync(cancellationToken).ConfigureAwait(false);
-        await using var comm = context.CreateCommand();
-
-        var builder = new DbDirectAccessBuilder(this, comm);
-        
-        config(builder);
-
-        builder.SetExecutionByReturnType<TResult>();
-        if (builder.Mode == DbDirectAccessBuilder.EExecMode.PrimitiveValue)
+        return await ExecuteResilientAsync(async () =>
         {
-            var scalarResult = await comm.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-            return CastScalar<TResult>(scalarResult);
-        }
+            var context = await provider.GetContextAsync(cancellationToken).ConfigureAwait(false);
+            await using var comm = context.CreateCommand();
 
-        var set = new DataSet();
+            var builder = new DbDirectAccessBuilder(this, comm);
+            
+            config(builder);
 
-        using var adapter = InternalCreateDataAdapter(comm);
-
-        await Task.Run(() => adapter.Fill(set), cancellationToken);
-
-        if (builder.Mode == DbDirectAccessBuilder.EExecMode.DataRow)
-        {
-            if (set.Tables.Count < 1 || set.Tables[0].Rows.Count < 1)
+            builder.SetExecutionByReturnType<TResult>();
+            if (builder.Mode == DbDirectAccessBuilder.EExecMode.PrimitiveValue)
             {
-                throw XFlowException.Create("Query don't return valida result");
+                var scalarResult = await comm.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+                return CastScalar<TResult>(scalarResult);
             }
 
-            return (TResult)(object)set.Tables[0].Rows[0];
-        }
+            var set = new DataSet();
 
-        if (builder.Mode == DbDirectAccessBuilder.EExecMode.DataTable)
-        {
-            if (set.Tables.Count < 1)
+            using var adapter = InternalCreateDataAdapter(comm);
+
+            await Task.Run(() => adapter.Fill(set), cancellationToken).ConfigureAwait(false);
+
+            if (builder.Mode == DbDirectAccessBuilder.EExecMode.DataRow)
             {
-                throw XFlowException.Create("Query don't return valida result");
+                if (set.Tables.Count < 1 || set.Tables[0].Rows.Count < 1)
+                {
+                    throw XFlowException.Create("Query don't return valida result");
+                }
+
+                return (TResult)(object)set.Tables[0].Rows[0];
             }
 
-            return (TResult)(object)set.Tables[0];
-        }
+            if (builder.Mode == DbDirectAccessBuilder.EExecMode.DataTable)
+            {
+                if (set.Tables.Count < 1)
+                {
+                    throw XFlowException.Create("Query don't return valida result");
+                }
 
-        return (TResult)(object)set;
+                return (TResult)(object)set.Tables[0];
+            }
+
+            return (TResult)(object)set;
+        }).ConfigureAwait(false);
     }
 
     public async Task<TResult> NonQueryAsync<TResult>(Action<DbDirectAccessBuilder> config, CancellationToken cancellationToken)
     {
-        var context = await provider.GetContextAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = context.CreateCommand();
-
-        var builder = new DbDirectAccessBuilder(this, command);
-        config(builder);
-
-        builder.SetExecutionByReturnType<TResult>();
-        if (builder.Mode == DbDirectAccessBuilder.EExecMode.PrimitiveValue)
+        return await ExecuteResilientAsync(async () =>
         {
-            var scalarResult = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-            return CastScalar<TResult>(scalarResult);
-        }
+            var context = await provider.GetContextAsync(cancellationToken).ConfigureAwait(false);
+            await using var command = context.CreateCommand();
 
-        var set = new DataSet();
+            var builder = new DbDirectAccessBuilder(this, command);
+            config(builder);
 
-        using var adapter = InternalCreateDataAdapter(command);
-
-        await Task.Run(() => adapter.Fill(set), cancellationToken);
-
-        if (builder.Mode == DbDirectAccessBuilder.EExecMode.DataRow)
-        {
-            if (set.Tables.Count < 1 || set.Tables[0].Rows.Count < 1)
+            builder.SetExecutionByReturnType<TResult>();
+            if (builder.Mode == DbDirectAccessBuilder.EExecMode.PrimitiveValue)
             {
-                throw XFlowException.Create("Query don't return valida result");
+                var scalarResult = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+                return CastScalar<TResult>(scalarResult);
             }
 
-            return (TResult)(object)set.Tables[0].Rows[0];
-        }
+            var set = new DataSet();
 
-        if (builder.Mode == DbDirectAccessBuilder.EExecMode.DataTable)
-        {
-            if (set.Tables.Count < 1)
+            using var adapter = InternalCreateDataAdapter(command);
+
+            await Task.Run(() => adapter.Fill(set), cancellationToken).ConfigureAwait(false);
+
+            if (builder.Mode == DbDirectAccessBuilder.EExecMode.DataRow)
             {
-                throw XFlowException.Create("Query don't return valida result");
+                if (set.Tables.Count < 1 || set.Tables[0].Rows.Count < 1)
+                {
+                    throw XFlowException.Create("Query don't return valida result");
+                }
+
+                return (TResult)(object)set.Tables[0].Rows[0];
             }
 
-            return (TResult)(object)set.Tables[0];
-        }
+            if (builder.Mode == DbDirectAccessBuilder.EExecMode.DataTable)
+            {
+                if (set.Tables.Count < 1)
+                {
+                    throw XFlowException.Create("Query don't return valida result");
+                }
 
-        return (TResult)(object)set;
+                return (TResult)(object)set.Tables[0];
+            }
+
+            return (TResult)(object)set;
+        }).ConfigureAwait(false);
     }
 
     private static TResult CastScalar<TResult>(object? value)
@@ -282,7 +334,7 @@ public abstract class DbDirectAccess(IDbSharedContextProvider provider)
 
     public async Task<DateTime> GetCurrentUtcDateTimeAsync(CancellationToken cancellationToken)
     {
-        var dt = await ScalarAsync<DateTime>(InternalGetCurrentUtcDateTimeSql(), CommandType.Text, cancellationToken);
+        var dt = await ScalarAsync<DateTime>(InternalGetCurrentUtcDateTimeSql(), CommandType.Text, cancellationToken).ConfigureAwait(false);
 
         return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
     }

@@ -1,12 +1,14 @@
-﻿using Keel.Infra.Db.Sql.Orm;
+﻿using Keel.Infra.Db.Sql;
+using Keel.Infra.Db.Sql.Orm;
 using Keel.Infra.Db.Sql.Orm.Transaction;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Keel.Infra.Db.Sql.IoC;
+// ReSharper disable once CheckNamespace
+namespace Microsoft.EntityFrameworkCore;
 
 public static class DbServices
 {
-    public static IServiceCollection AddDbLayer<TDbContext, TDbLayer>(this IServiceCollection services) 
+    public static IServiceCollection EnableDbLayer<TDbContext, TDbLayer>(this IServiceCollection services) 
         where TDbContext : BaseDbContext where TDbLayer : class, IDbLayer<TDbContext>
     {
         services
